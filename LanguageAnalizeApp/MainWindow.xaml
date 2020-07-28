@@ -1,0 +1,36 @@
+﻿<Window x:Class="LanguageAnalizeApp.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:LanguageAnalizeApp"
+        mc:Ignorable="d"
+        Title="Language Analizer by VVV" Height="450" Width="800">
+    <Grid>
+        <Grid HorizontalAlignment="Left" Height="419" VerticalAlignment="Top" Width="792" RenderTransformOrigin="0.696,0.497" Background="#FFD6D8FF">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1*"/>
+                <ColumnDefinition Width="13*"/>
+                <ColumnDefinition Width="1*"/>
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="1*"/>
+                <RowDefinition Height="13*"/>
+                <RowDefinition Height="1*"/>
+            </Grid.RowDefinitions>
+            <Grid Grid.Column="1" Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="1*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="6*"/>
+                    <RowDefinition Height="1*"/>
+                    <RowDefinition Height="4*"/>
+                </Grid.RowDefinitions>
+                <TextBox Name="InputTextBox" Grid.Column="0" Grid.Row="0" TextChanged="InputTextBox_TextChanged"/>
+                <TextBlock Name="ResultTextBlock" Grid.Column="0" Grid.Row="1" TextAlignment="Center" FontFamily="Century" FontSize="24"/>
+                <TextBox Name="FullResultTextBox" Grid.Column="0" Grid.Row="2" TextAlignment="Center" IsEnabled="False" Background="#FFD6D8FF" ScrollViewer.VerticalScrollBarVisibility="Auto" BorderBrush="#FFD6D8FF"/>
+            </Grid>
+        </Grid>
+    </Grid>
+</Window>
