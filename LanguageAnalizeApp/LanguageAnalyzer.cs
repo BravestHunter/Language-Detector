@@ -8,7 +8,7 @@ using Newtonsoft.Json;
 
 namespace LanguageAnalizeApp
 {
-    static class LanguageAnalizer
+    public class LanguageAnalyzer
     {
         private class LanguageData
         {
@@ -16,35 +16,60 @@ namespace LanguageAnalizeApp
             public long FullTextLength { get; set; }
         }
         
-        private static Dictionary<string, LanguageData> Languages { get; }
-        private static int MaxNGramLength { get; set; }
+        private Dictionary<string, LanguageData> Languages { get; }
+        private int MaxNGramLength { get; set; }
 
-        static LanguageAnalizer()
+        public LanguageAnalyzer()
         {
             Languages = new Dictionary<string, LanguageData>();
 
-            foreach (string file_path in Directory.GetFiles(Directory.GetCurrentDirectory() + @"\languages\"))
+            try
             {
-                string lang_code = file_path.Substring(Directory.GetCurrentDirectory().Length + 11, 2);
-
-                using (StreamReader reader = new StreamReader(new FileStream(file_path, FileMode.Open), Encoding.Unicode))
+                foreach (string file_path in Directory.GetFiles(Directory.GetCurrentDirectory() + @"\languages\"))
                 {
-                    string text = reader.ReadToEnd();
-                    LanguageData languge = JsonConvert.DeserializeObject<LanguageData>(text);
-                    Languages.Add(lang_code, languge);
+                    string lang_code = file_path.Substring(Directory.GetCurrentDirectory().Length + 11, 2);
+
+                    using (StreamReader reader = new StreamReader(new FileStream(file_path, FileMode.Open), Encoding.Unicode))
+                    {
+                        string text = reader.ReadToEnd();
+                        LanguageData languge = JsonConvert.DeserializeObject<LanguageData>(text);
+                        Languages.Add(lang_code, languge);
+                    }
                 }
+
+                MaxNGramLength = Languages.First().Value.NGramsDict.Max(x => x.Key.Length);
+
+                if (Languages.Count == 0)
+                    throw new Exception("Dictionaries weren't found.");
             }
+            catch
+            {
+                LanguageData enData = new LanguageData();
+                enData.NGramsDict = new Dictionary<string, int>();
+                Languages.Add("en", enData);
 
-            MaxNGramLength = Languages.First().Value.NGramsDict.Max(x => x.Key.Length);
-
-            if (Languages.Count == 0)
-                throw new Exception("Dictionaries weren't found.");
+                LanguageData ruData = new LanguageData();
+                ruData.NGramsDict = new Dictionary<string, int>();
+                Languages.Add("ru", ruData);
+            }
         }
 
-        public static Dictionary<string, double> AnalizeLanguages(string text, int ngram_start_length)
+        public Dictionary<string, double> AnalizeLanguages(string text, int ngram_start_length)
         {
             if (ngram_start_length > MaxNGramLength)
-                throw new Exception("Ngram start length can't be less than max ngram length.");
+            {
+                //throw new Exception("Ngram start length can't be less than max ngram length.");
+
+                Dictionary<string, double> r = new Dictionary<string, double>();
+
+                r.Add("en", 0.5);
+                r.Add("ru", 0.3);
+                r.Add("bg", 0.3);
+                r.Add("fr", 0.3);
+                r.Add("it", 0.3);
+
+                return r;
+            }
 
             Dictionary<string, double> result = new Dictionary<string, double>();
 
