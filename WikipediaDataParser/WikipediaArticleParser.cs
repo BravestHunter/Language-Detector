@@ -1,29 +1,36 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 using System.Xml;
-using Newtonsoft.Json;
 
-namespace WikipediaDataAnalizer
+namespace WikipediaDataParser
 {
-    enum InputMode
+    internal class WikipediaArticleParser
     {
-        XML,
-        PlainText
-    }
+        public enum FileFormat
+        {
+            Xml,
+            PlainText
+        }
 
-    enum SpeedMode
-    {
-        Normal,
-        Fast
-    }
+        public enum SpeedMode
+        {
+            Normal,
+            Fast
+        }
 
-    class LanguageAnalizer
-    {
-        private List<string> WrongArticleNames = new List<string>() {
+        public struct ParseResult
+        {
+            public Dictionary<string, int> NgramsDict;
+            public long FullTextLength;
+        }
+
+        private static ImmutableArray<string> WrongArticleNames = ImmutableArray.Create 
+        (
             "User",
             "Talk",
             "Help",
@@ -35,61 +42,58 @@ namespace WikipediaDataAnalizer
 
             "Шаблон",
             "Википедия"
-        };
+        );
 
-        private Dictionary<string, int> NGramsDict { get; set; }
+        private const int SubresultCount = 5000;
+
+        private readonly CultureInfo _cultureInfo;
+        private readonly int _maxNgramLength;
+        private readonly List<char> _charList;
+
         private long FullTextLength { get; set; }
 
-        public string FromFilePath { get; set; }
-        public string ToFilePath { get; set; }
-        public InputMode InputMode { get; set; }
-        public SpeedMode SpeedMode { get;set;}
-        public List<char> CharList { get; set; }
-        public int MaxNGramLength { get; set; }
+        private Dictionary<string, int> NgramsDict { get; set; } = new Dictionary<string, int>();
 
-        public int SubresultCount { get; set; }
+        public string SourcePath { get; set; }
+        public SpeedMode SMode { get;set;}
 
-        public LanguageAnalizer(List<char> char_list, string from_file_path, string to_file_path, InputMode input_mode = InputMode.XML, SpeedMode speed_mode = SpeedMode.Normal, int max_ngram_len = 3)
+
+        public WikipediaArticleParser(CultureInfo cultureInfo, int maxNgramLength = 3)
         {
-            NGramsDict = new Dictionary<string, int>();
-            FullTextLength = 0;
+            _cultureInfo = cultureInfo;
+            _maxNgramLength = maxNgramLength;
 
-            FromFilePath = from_file_path;
-            ToFilePath = to_file_path;
-            InputMode = input_mode;
-            SpeedMode = speed_mode;
-            CharList = char_list;
-            MaxNGramLength = max_ngram_len;
-
-            SubresultCount = 5000;
+            _charList = Utils.GetCharacters(cultureInfo);
         }
 
-        public void Analize()
+
+        public ParseResult Parse(string sourcePath, FileFormat fileMode, SpeedMode speedMode = SpeedMode.Fast)
         {
-            switch (InputMode)
+            SourcePath = sourcePath;
+            SMode = speedMode;
+
+            FullTextLength = 0;
+
+            switch (fileMode)
             {
-                case InputMode.XML:
+                case FileFormat.Xml:
                     AnalazeLanguageXML();
                     break;
-                case InputMode.PlainText:
+                case FileFormat.PlainText:
                     AnalizePlainText();
                     break;
             }
-        }
 
-        public void Analize(InputMode mode)
-        {
-            InputMode = mode;
-            Analize();
+            return new ParseResult() { NgramsDict = NgramsDict, FullTextLength = FullTextLength };
         }
 
         private void AnalazeLanguageXML()
         {
             string line;
-            bool is_block = false;
+            bool isBlock = false;
             StringBuilder block = new StringBuilder();
 
-            using (StreamReader reader = new StreamReader(new FileStream(FromFilePath, FileMode.Open)))
+            using (StreamReader reader = new StreamReader(new FileStream(SourcePath, FileMode.Open)))
             {
                 while (true)
                 {
@@ -98,28 +102,26 @@ namespace WikipediaDataAnalizer
                         break;
 
                     if (line.Contains("<page>"))
-                        is_block = true;
+                        isBlock = true;
 
-                    if (is_block)
+                    if (isBlock)
                         block.Append(line);
 
                     if (line.Contains("</page>"))
                     {
-                        is_block = false;
+                        isBlock = false;
                         AnalizeLanguageBlockXML(block.ToString());
                         block = new StringBuilder();
                     }
                 }
             }
-
-            WriteResult();
         }
 
         private void AnalizePlainText()
         {
             int counter = 0;
 
-            foreach(string folder in Directory.GetDirectories(FromFilePath))
+            foreach(string folder in Directory.GetDirectories(SourcePath))
             {
                 foreach(string filename in Directory.GetFiles(folder))
                 {
@@ -134,7 +136,7 @@ namespace WikipediaDataAnalizer
 
                             FullTextLength += text.Length;
 
-                            for (int i = 1; i <= MaxNGramLength; i++)
+                            for (int i = 1; i <= _maxNgramLength; i++)
                             {
                                 AddResult(text.ToString(), i);
                             }
@@ -144,13 +146,13 @@ namespace WikipediaDataAnalizer
                         if (counter == SubresultCount)
                         {
                             counter = 0;
-                            WriteResult();
+                            return;
                         }
                     }
                 }
             }
 
-            WriteResult();
+            return;
         }
 
         private void AnalizeLanguageBlockXML(string block)
@@ -158,7 +160,7 @@ namespace WikipediaDataAnalizer
             XmlDocument document = new XmlDocument();
             document.LoadXml(block);
             XmlNode page = document.FirstChild;
-            XmlNode text_node = page.FirstChild;
+            XmlNode textNode = page.FirstChild;
             bool perform = true;
             foreach (XmlNode outer_node in page.ChildNodes)
             {
@@ -181,7 +183,7 @@ namespace WikipediaDataAnalizer
                     {
                         if (inner_node.Name == "text")
                         {
-                            text_node = inner_node;
+                            textNode = inner_node;
                             break;
                         }
                     }
@@ -189,22 +191,22 @@ namespace WikipediaDataAnalizer
                 }
             }
 
-            if (perform && text_node.InnerText.Length > 1 && text_node.InnerText[0] != '#')
+            if (perform && textNode.InnerText.Length > 1 && textNode.InnerText[0] != '#')
             {
                 StringBuilder text = null;
-                switch (SpeedMode)
+                switch (SMode)
                 {
                     case SpeedMode.Normal:
-                        text = RemoveTrashXML(new StringBuilder().Append(text_node.InnerText));
+                        text = RemoveTrashXML(new StringBuilder().Append(textNode.InnerText));
                         break;
                     case SpeedMode.Fast:
-                        text = RemoveTrashXMLFast(new StringBuilder().Append(text_node.InnerText));
+                        text = RemoveTrashXMLFast(new StringBuilder().Append(textNode.InnerText));
                         break;
                 }
 
                 FullTextLength += text.Length;
 
-                for (int i = 1; i <= MaxNGramLength; i++)
+                for (int i = 1; i <= _maxNgramLength; i++)
                 {
                     AddResult(text.ToString(), i);
                 }
@@ -313,9 +315,9 @@ namespace WikipediaDataAnalizer
             }
 
             // Removing other
-            if(text.ToString().Any(c => !CharList.Contains(c.ToString().ToLower()[0])))
+            if(text.ToString().Any(c => !_charList.Contains(c.ToString().ToLower()[0])))
             {
-                foreach(char c in text.ToString().Where(c => !CharList.Contains(c.ToString().ToLower()[0])))
+                foreach(char c in text.ToString().Where(c => !_charList.Contains(c.ToString().ToLower()[0])))
                 {
                     text.Replace(c.ToString(), " ");
                 }
@@ -327,11 +329,11 @@ namespace WikipediaDataAnalizer
         private StringBuilder RemoveTrashXMLFast(StringBuilder text)
         {
             // Removing other
-            if (text.ToString().Any(c => !CharList.Contains(c.ToString().ToLower()[0])))
+            if (text.ToString().Any(c => !_charList.Contains(char.ToLower(c))))
             {
-                foreach (char c in text.ToString().Where(c => !CharList.Contains(c.ToString().ToLower()[0])))
+                foreach (char c in text.ToString().Where(c => !_charList.Contains(char.ToLower(c))))
                 {
-                    text.Replace(c.ToString(), " ");
+                    text.Replace(c.ToString(), "");
                 }
             }
 
@@ -342,10 +344,10 @@ namespace WikipediaDataAnalizer
         {
             while (text.ToString().IndexOf('[') != -1)
             {
-                int start_position = text.ToString().IndexOf('[');
-                int end_position = text.ToString().IndexOf(']', start_position);
-                if (end_position != -1)
-                    text = text.Remove(start_position, end_position - start_position + 1);
+                int startPosition = text.ToString().IndexOf('[');
+                int endPosition = text.ToString().IndexOf(']', startPosition);
+                if (endPosition != -1)
+                    text = text.Remove(startPosition, endPosition - startPosition + 1);
                 else
                     break;
             }
@@ -362,9 +364,9 @@ namespace WikipediaDataAnalizer
 
             text = text.Replace("==", "");
 
-            if (text.ToString().Any(c => !CharList.Contains(c.ToString().ToLower()[0])))
+            if (text.ToString().Any(c => !_charList.Contains(c.ToString().ToLower()[0])))
             {
-                foreach (char c in text.ToString().Where(c => !CharList.Contains(c.ToString().ToLower()[0])))
+                foreach (char c in text.ToString().Where(c => !_charList.Contains(c.ToString().ToLower()[0])))
                 {
                     text.Replace(c.ToString(), " ");
                 }
@@ -375,19 +377,18 @@ namespace WikipediaDataAnalizer
 
         private void AddResult(string text, int length)
         {
-            string substring = string.Empty;
             for (int i = 0; i < text.Length - length + 1; i++)
             {
-                substring = ModifyNGram(text.Substring(i, length));
+                string substring = ModifyNGram(text.Substring(i, length));
                 if (substring != null)
                 {
-                    if (!NGramsDict.ContainsKey(substring))
+                    if (!NgramsDict.ContainsKey(substring))
                     {
-                        NGramsDict.Add(substring, 1);
+                        NgramsDict.Add(substring, 1);
                     }
                     else
                     {
-                        NGramsDict[substring]++;
+                        NgramsDict[substring]++;
                     }
                 }
             }
@@ -399,7 +400,7 @@ namespace WikipediaDataAnalizer
 
             if (ngram.Length == 1)
             {
-                if (!(CharList.Contains(ngram[0]) && char.IsLetter(ngram[0])))
+                if (!(_charList.Contains(ngram[0]) && char.IsLetter(ngram[0])))
                     return null;
 
                 return ngram;
@@ -407,8 +408,8 @@ namespace WikipediaDataAnalizer
 
             if (ngram.Length == 2)
             {
-                string first = (CharList.Contains(ngram[0]) && char.IsLetter(ngram[0])) ? ngram[0].ToString() : "*";
-                string last = (CharList.Contains(ngram[ngram.Length - 1]) &&char.IsLetter(ngram[ngram.Length - 1])) ? ngram[ngram.Length - 1].ToString() : "*";
+                string first = (_charList.Contains(ngram[0]) && char.IsLetter(ngram[0])) ? ngram[0].ToString() : "*";
+                string last = (_charList.Contains(ngram[ngram.Length - 1]) &&char.IsLetter(ngram[ngram.Length - 1])) ? ngram[ngram.Length - 1].ToString() : "*";
 
                 if (first == "*" && last == "*")
                     return null;
@@ -417,28 +418,17 @@ namespace WikipediaDataAnalizer
             }
             else
             {
-                string first = (CharList.Contains(ngram[0]) && char.IsLetter(ngram[0])) ? ngram[0].ToString() : "*";
-                string last = (CharList.Contains(ngram[ngram.Length - 1]) && char.IsLetter(ngram[ngram.Length - 1])) ? ngram[ngram.Length - 1].ToString() : "*";
+                string first = (_charList.Contains(ngram[0]) && char.IsLetter(ngram[0])) ? ngram[0].ToString() : "*";
+                string last = (_charList.Contains(ngram[ngram.Length - 1]) && char.IsLetter(ngram[ngram.Length - 1])) ? ngram[ngram.Length - 1].ToString() : "*";
                 string center = new string(ngram.Skip(1).Take(ngram.Length - 2).ToArray());
 
                 foreach (char c in center)
                 {
-                    if (!CharList.Contains(c) || !char.IsLetter(c))
+                    if (!_charList.Contains(c) || !char.IsLetter(c))
                         return null;
                 }
 
                 return first + center + last;
-            }
-        }
-
-        private void WriteResult()
-        {
-            using (StreamWriter writer = new StreamWriter(new FileStream(ToFilePath, FileMode.Create), Encoding.Unicode))
-            {
-                foreach(char c in JsonConvert.SerializeObject(new { NGramsDict = NGramsDict, FullTextLength = FullTextLength }))
-                {
-                    writer.Write(c);
-                }
             }
         }
     }
