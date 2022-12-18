@@ -102,6 +102,7 @@ namespace WikipediaDataParser
                 case "de":
                     return LatinCharacters.Concat(PunctuationCharacters).ToList();
                 case "ru":
+                case "uk":
                 case "bg":
                     return CyrillicCharacters.Concat(PunctuationCharacters).ToList();
             }

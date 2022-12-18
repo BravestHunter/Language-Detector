@@ -15,7 +15,7 @@ using System.Windows.Navigation;
 using System.Windows.Shapes;
 using System.Globalization;
 
-namespace LanguageAnalizeApp
+namespace LanguageAnalyzeApp
 {
     public partial class MainWindow : Window
     {

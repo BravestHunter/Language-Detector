@@ -8,7 +8,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Navigation;
 
-namespace LanguageAnalizeApp
+namespace LanguageAnalyzeApp
 {
     public partial class App : Application
     {

@@ -1,9 +1,9 @@
-﻿<Window x:Class="LanguageAnalizeApp.MainWindow"
+﻿<Window x:Class="LanguageAnalyzeApp.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:LanguageAnalizeApp"
+        xmlns:local="clr-namespace:LanguageAnalyzeApp"
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=local:MainViewModel, IsDesignTimeCreatable=True}"
         Title="Language Analyzer" Width="800" Height="600" MinWidth="400" MinHeight="300">
@@ -22,7 +22,7 @@
                 <RowDefinition Height="30"/>
             </Grid.RowDefinitions>
 
-            <TextBox Grid.Column="1" Grid.Row="1" Text="{Binding InputText, UpdateSourceTrigger=PropertyChanged}"/>
+            <TextBox Grid.Column="1" Grid.Row="1" Text="{Binding InputText, UpdateSourceTrigger=PropertyChanged}" TextWrapping="Wrap"/>
 
             <TextBlock Grid.Column="1" Grid.Row="2" Text="{Binding VerdictText}" TextAlignment="Center" FontFamily="Century" FontSize="24"/>
             

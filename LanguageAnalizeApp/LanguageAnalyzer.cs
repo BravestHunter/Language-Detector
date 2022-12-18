@@ -3,10 +3,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 using Newtonsoft.Json;
 
-namespace LanguageAnalizeApp
+namespace LanguageAnalyzeApp
 {
     public class LanguageAnalyzer
     {
@@ -15,130 +14,129 @@ namespace LanguageAnalizeApp
             public Dictionary<string, int> NGramsDict { get; set; }
             public long FullTextLength { get; set; }
         }
-        
-        private Dictionary<string, LanguageData> Languages { get; }
-        private int MaxNGramLength { get; set; }
 
-        public LanguageAnalyzer()
+        private readonly Dictionary<string, LanguageData> _languages;
+        private readonly int _maxNGramLength;
+
+
+        public LanguageAnalyzer(IEnumerable<string> dictPaths)
         {
-            Languages = new Dictionary<string, LanguageData>();
+            _languages = new Dictionary<string, LanguageData>();
 
-            try
+            foreach (string filePath in dictPaths)
             {
-                foreach (string file_path in Directory.GetFiles(Directory.GetCurrentDirectory() + @"\languages\"))
+                if (!File.Exists(filePath))
                 {
-                    string lang_code = file_path.Substring(Directory.GetCurrentDirectory().Length + 11, 2);
+                    continue;
+                }
 
-                    using (StreamReader reader = new StreamReader(new FileStream(file_path, FileMode.Open), Encoding.Unicode))
+                try
+                {
+                    string langCode = Path.GetFileNameWithoutExtension(filePath);
+
+                    using (StreamReader reader = new StreamReader(new FileStream(filePath, FileMode.Open), Encoding.Unicode))
                     {
                         string text = reader.ReadToEnd();
                         LanguageData languge = JsonConvert.DeserializeObject<LanguageData>(text);
-                        Languages.Add(lang_code, languge);
+                        _languages.Add(langCode, languge);
                     }
                 }
-
-                MaxNGramLength = Languages.First().Value.NGramsDict.Max(x => x.Key.Length);
-
-                if (Languages.Count == 0)
-                    throw new Exception("Dictionaries weren't found.");
+                catch
+                {
+                    // Nothing to do here
+                }
             }
-            catch
+
+            if (_languages.Count == 0)
             {
-                LanguageData enData = new LanguageData();
-                enData.NGramsDict = new Dictionary<string, int>();
-                Languages.Add("en", enData);
-
-                LanguageData ruData = new LanguageData();
-                ruData.NGramsDict = new Dictionary<string, int>();
-                Languages.Add("ru", ruData);
+                throw new ArgumentException("Dictionaries weren't found.");
             }
+
+            _maxNGramLength = _languages.Select(pair => pair.Value.NGramsDict.Max(x => x.Key.Length)).Min();
         }
 
-        public Dictionary<string, double> AnalizeLanguages(string text, int ngram_start_length)
+        public Dictionary<string, double> AnalyzeLanguages(string text, int ngramStartLength)
         {
-            if (ngram_start_length > MaxNGramLength)
+            if (ngramStartLength > _maxNGramLength)
             {
-                //throw new Exception("Ngram start length can't be less than max ngram length.");
-
-                Dictionary<string, double> r = new Dictionary<string, double>();
-
-                r.Add("en", 0.5);
-                r.Add("ru", 0.3);
-                r.Add("bg", 0.3);
-                r.Add("fr", 0.3);
-                r.Add("it", 0.3);
-
-                return r;
+                throw new ArgumentOutOfRangeException("Ngram start length can't be less than max ngram length.");
             }
 
             Dictionary<string, double> result = new Dictionary<string, double>();
 
-            long min_length = Languages.Values.Min(x => x.FullTextLength);
-            foreach(KeyValuePair<string, LanguageData> language in Languages)
+            long minLength = _languages.Values.Min(x => x.FullTextLength);
+            foreach (KeyValuePair<string, LanguageData> language in _languages)
             {
-                double sum = 0;
-                for(int i = ngram_start_length; i <= MaxNGramLength; i++)
+                long sum = 0;
+                for (int i = ngramStartLength; i <= _maxNGramLength; i++)
                 {
-                    sum += AnalizeText(text, language.Value, i) * ScoreModifier(i);
+                    sum += CountScore(text, language.Value, i);
                 }
-                result.Add(language.Key, sum / language.Value.FullTextLength * min_length);
+
+                result.Add(language.Key, (double)sum / language.Value.FullTextLength);
             }
 
             return result;
         }
 
-        private static int AnalizeText(string text, LanguageData language, int ngram_length)
+        private static long CountScore(string text, LanguageData language, int ngramLength)
         {
-            int counter = 0;
-            for(int i = 0; i < text.Length - ngram_length + 1; i++)
+            long counter = 0;
+            for (int i = 0; i < text.Length - ngramLength + 1; i++)
             {
-                string substring = ModifyNgram(text.Substring(i, ngram_length));
+                string substring = GetNgram(text.Substring(i, ngramLength));
 
                 if (substring != null)
+                {
                     counter += language.NGramsDict.ContainsKey(substring) ? language.NGramsDict[substring] : 0;
+                }
             }
 
-            return counter;
+            return counter * GetScoreModifier(ngramLength);
         }
 
-        private static string ModifyNgram(string ngram)
+        private static string GetNgram(string ngram)
         {
             ngram = ngram.ToLower();
 
             if (ngram.Length == 1)
             {
-                if (char.IsLetter(ngram[0]))
-                    return ngram;
-                else
-                    return null;
-            }
-
-            string first = char.IsLetter(ngram[0]) ? ngram[0].ToString() : "*";
-            string last = char.IsLetter(ngram[ngram.Length - 1]) ? ngram[ngram.Length - 1].ToString() : "*";
-
-            if (ngram.Length == 2)
-            {
-                if (first == "*" && last == "*")
-                    return null;
-
-                return first + last;
-            }
-            else
-            {
-                string center = ngram.Substring(1, ngram.Length - 2);
-                foreach (char c in center)
+                if (!char.IsLetter(ngram[0]))
                 {
-                    if (!char.IsLetter(c))
-                        return null;
+                    return null;
                 }
-                return first + center + last;
+
+                return ngram;
             }
+
+            char[] chars = ngram.ToArray();
+            if (!char.IsLetter(chars[0]))
+            {
+                chars[0] = '*';
+            }
+            if (!char.IsLetter(chars[chars.Length - 1]))
+            {
+                chars[chars.Length - 1] = '*';
+            }
+
+            if (chars.Length == 2 && chars[0] == '*' && chars[chars.Length - 1] == '*')
+            {
+                return null;
+            }
+
+            if (chars.Where(c => char.IsLetter(c)).Count() > 2)
+            {
+                return null;
+            }
+
+            return new string(chars);
         }
 
-        private static int ScoreModifier(int length)
+        private static long GetScoreModifier(int length)
         {
-            return 1;
-            //return Enumerable.Range(1, length).Aggregate((a, b) => a * b);
+            // (There should be super smart modifier calculation method for different nGrams, but whatever)
+            // Exponentian fuction is used for super boost of long n-grams which actually help to determine language in most
+            return (long)Math.Pow(length, length + 10);
         }
     }
 }

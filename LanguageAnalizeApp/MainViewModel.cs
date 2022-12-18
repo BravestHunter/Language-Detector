@@ -1,11 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 
-namespace LanguageAnalizeApp
+namespace LanguageAnalyzeApp
 {
     public class MainViewModel : ViewModelBase
     {
@@ -66,7 +66,8 @@ namespace LanguageAnalizeApp
 
         public MainViewModel()
         {
-            _analyzer = new LanguageAnalyzer();
+            IEnumerable<string> dicts = Directory.GetFiles(Path.Combine(Directory.GetCurrentDirectory(), "Dicts"));
+            _analyzer = new LanguageAnalyzer(dicts);
         }
 
 
@@ -76,17 +77,10 @@ namespace LanguageAnalizeApp
             {
                 Clear();
             }
-            else
-            {
-                DetermineLanguage();
-            }
-        }
 
-        private void DetermineLanguage()
-        {
-            Dictionary<string, double> result = _analyzer.AnalizeLanguages(InputText, 2);
+            Dictionary<string, double> result = _analyzer.AnalyzeLanguages(InputText, 1);
 
-            VerdictText = "This is " + CultureInfo.GetCultureInfoByIetfLanguageTag(result.Where(x => x.Value == result.Max(y => y.Value)).First().Key).EnglishName + " language";
+            VerdictText = $"This is {CultureInfo.GetCultureInfoByIetfLanguageTag(result.Where(x => x.Value == result.Max(y => y.Value)).First().Key).EnglishName} language";
 
             double full = Math.Round(result.Values.Aggregate((x, y) => x + y));
             if (full != 0)
