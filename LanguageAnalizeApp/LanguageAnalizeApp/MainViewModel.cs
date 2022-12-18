@@ -91,7 +91,7 @@ namespace LanguageAnalyzeApp
                 {
                     infoTextBuilder.Append(CultureInfo.GetCultureInfoByIetfLanguageTag(pair.Key).EnglishName);
                     infoTextBuilder.Append(" - ");
-                    infoTextBuilder.Append((int)pair.Value / full * 100);
+                    infoTextBuilder.Append(Math.Round(pair.Value / full * 100, 2));
                     infoTextBuilder.Append("\n");
                 }
 
